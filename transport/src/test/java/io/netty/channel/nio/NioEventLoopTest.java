@@ -16,9 +16,11 @@
 package io.netty.channel.nio;
 
 import io.netty.channel.AbstractEventLoopTest;
+import io.netty.channel.Channel;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.socket.ServerSocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import org.junit.Test;
 
 public class NioEventLoopTest extends AbstractEventLoopTest {
 
@@ -30,5 +32,26 @@ public class NioEventLoopTest extends AbstractEventLoopTest {
     @Override
     protected Class<? extends ServerSocketChannel> newChannel() {
         return NioServerSocketChannel.class;
+    }
+
+    @Test
+    public void testRebuildSelector() throws Exception {
+        EventLoopGroup group = new NioEventLoopGroup(1);
+        final NioEventLoop loop = (NioEventLoop) group.next();
+        try {
+            Channel channel = new NioServerSocketChannel();
+            loop.register(channel).syncUninterruptibly();
+
+            // Submit to the EventLoop so we are sure its really executed in an non-async manner.
+            loop.submit(new Runnable() {
+                @Override
+                public void run() {
+                    loop.rebuildSelector();
+                }
+            }).syncUninterruptibly();
+            channel.close().syncUninterruptibly();
+        } finally {
+            group.shutdownGracefully();
+        }
     }
 }
